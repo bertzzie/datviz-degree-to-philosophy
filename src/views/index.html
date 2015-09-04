@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>Degrees to Philosophy</title>
+	<style>
+		.node circle {
+			stroke: #fff;
+			stroke-width: 1.5px;
+		}
+
+		.link {
+			fill: none;
+			stroke: #999;
+			stroke-opacity: .6;
+			stroke-width: 1.5px;
+		}
+
+		text {
+			font: 10px sans-serif;
+			pointer-events: none;
+		}
+	</style>
+</head>
+<body>
+	<h1>Degrees to Philosophy</h1>
+
+	<input type="text" id="keyword">
+
+	<section id="graph"></section>
+
+	<script src="https://cdn.socket.io/socket.io-1.3.5.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.6/d3.min.js" charset="utf-8"></script>
+
+	<script>
+	var socket = io();
+	var nodes = [];
+	var links = [];
+
+	var width = 960,
+        height = 500;
+
+	var color = d3.scale.category20();
+
+	var force = d3.layout.force()
+		.linkDistance(60)
+	    .charge(-300)
+	    .size([width, height])
+		.nodes(nodes)
+		.links(links);
+
+	force.on("tick", function() {
+		link.attr("x1", function(d) { return d.source.x; })
+			.attr("y1", function(d) { return d.source.y; })
+			.attr("x2", function(d) { return d.target.x; })
+			.attr("y2", function(d) { return d.target.y; });
+
+		node.attr("transform", function (d) {
+			return "translate (" + d.x + "," + d.y + ")";
+		});
+	});
+
+	var svg = d3.select("section#graph").append("svg")
+	    .attr("width", width)
+	    .attr("height", height);
+
+	svg.append("g").attr("class", "links");
+	svg.append("g").attr("class", "nodes");
+
+	var link = svg.select(".links").selectAll(".link");
+	var node = svg.select(".nodes").selectAll(".node");
+
+	function UpdateGraph() {
+		force.start();
+
+		link = link.data(force.links());
+		link.enter().append("line").attr("class", "link");
+		link.exit().remove();
+
+		node = node.data(force.nodes());
+		node.enter().append("g")
+			.attr("class", "node")
+			.call(force.drag);
+
+		node.append("circle")
+		    .attr("r", 8)
+		    .style("fill", function (d) { return color(d.group); });
+
+		node.append("text")
+			.attr("x", 12)
+			.attr("dy", ".35em")
+			.text(function(d) { return d.name; });
+
+		node.exit().remove();
+	}
+
+	function indexOfNode(nodes, name) {
+		return nodes.findIndex(function (el, idx, arr) {
+			return el["name"] === name;
+		});
+	}
+
+	var kw = document.querySelector("#keyword");
+	kw.addEventListener("keypress", function (evt) {
+		if (evt.keyCode == 13) {
+			socket.emit("search", kw.value);
+
+			nodes.push({"name": kw.value.toLowerCase()});
+			kw.value = "";
+		}
+	});
+
+	socket.on("search result", function (resp) {
+		var smRes   = resp.res.toLowerCase();
+		var smSrc   = resp.src.toLowerCase();
+		var nidxRes = indexOfNode(nodes, smRes);
+		var nidxSrc = indexOfNode(nodes, smSrc);
+
+		if (nidxRes === -1) {
+			nodes.push({"name": smRes});
+		}
+
+		var newLink = {"source": nidxSrc, "target": indexOfNode(nodes, smRes), "value": 4};
+		links.push(newLink);
+
+		UpdateGraph();
+	});
+
+	UpdateGraph();
+	</script>
+</body>
+</html>
